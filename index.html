@@ -217,8 +217,8 @@
         </header>
 
         <div class="data-note">
-            <strong>Sample Data</strong> - This dashboard shows example data.
-            Configure your BrickSet API key and add real prices to see actual performance.
+            <strong>Real Market Data</strong> - Analysis of 12 retired LEGO sets (2020-2022) with
+            actual eBay sold prices vs S&P 500 returns for the same holding periods.
         </div>
 
         <div class="metrics-grid" id="metrics-grid">
@@ -257,8 +257,9 @@
                         <th>Theme</th>
                         <th>Retail</th>
                         <th>Current</th>
-                        <th>Return</th>
-                        <th>Status</th>
+                        <th>LEGO Return</th>
+                        <th>S&P 500</th>
+                        <th>vs Market</th>
                     </tr>
                 </thead>
                 <tbody id="sets-tbody">
@@ -275,13 +276,22 @@
     </div>
 
     <script>
-        // Sample S&P 500 data (would be loaded from sp500_data.json in production)
-        const SP500_RETURN_12M = 28.5; // Example: S&P 500 returned ~28.5% in 2024
+        // S&P 500 returns by purchase year (approximate SPY returns to Nov 2025)
+        const SP500_RETURNS_BY_YEAR = {
+            2020: 85,  // Nov 2020 - Nov 2025
+            2021: 55,  // 2021 - Nov 2025
+            2022: 35,  // 2022 - Nov 2025
+            2023: 50,  // 2023 - Nov 2025
+        };
+
+        function getSP500Return(year) {
+            return SP500_RETURNS_BY_YEAR[year] || 35;
+        }
 
         // Load and process data
         async function loadData() {
             try {
-                const response = await fetch('data/processed/sample_sets.json');
+                const response = await fetch('data/processed/validated_sets.json');
                 const sets = await response.json();
                 return sets;
             } catch (error) {
@@ -328,15 +338,32 @@
                    available.reduce((s, x) => s + x.retail_price_usd, 0)) * 100
                 : 0;
 
+            // Calculate weighted S&P 500 return based on investment amounts by year
+            let sp500Equivalent = 0;
+            pricedSets.forEach(s => {
+                const sp500Return = getSP500Return(s.year) / 100;
+                sp500Equivalent += s.retail_price_usd * (1 + sp500Return);
+            });
+            const avgSP500Return = ((sp500Equivalent - totalRetail) / totalRetail) * 100;
+
+            // Count sets beating S&P 500
+            const beatsSP500 = pricedSets.filter(s => {
+                const legoReturn = (s.current_price - s.retail_price_usd) / s.retail_price_usd;
+                const sp500Return = getSP500Return(s.year) / 100;
+                return legoReturn > sp500Return;
+            });
+
             return {
                 totalSets: pricedSets.length,
                 totalRetail,
                 totalCurrent,
                 totalProfit: totalCurrent - totalRetail,
                 totalReturn,
-                sp500Return: SP500_RETURN_12M,
-                outperformance: totalReturn - SP500_RETURN_12M,
+                sp500Return: avgSP500Return,
+                sp500Equivalent,
+                outperformance: totalReturn - avgSP500Return,
                 winners: winners.length,
+                beatsSP500Count: beatsSP500.length,
                 losers: losers.length,
                 winRate: (winners.length / pricedSets.length) * 100,
                 themeReturns,
@@ -353,12 +380,12 @@
             const cards = [
                 { value: metrics.totalSets, label: 'Total Sets', class: '' },
                 { value: `$${metrics.totalRetail.toFixed(0)}`, label: 'Total Invested', class: '' },
-                { value: `$${metrics.totalCurrent.toFixed(0)}`, label: 'Current Value', class: '' },
+                { value: `$${metrics.totalCurrent.toFixed(0)}`, label: 'LEGO Value', class: '' },
+                { value: `$${metrics.sp500Equivalent.toFixed(0)}`, label: 'S&P 500 Would Be', class: 'sp500-color' },
                 { value: `${metrics.totalReturn >= 0 ? '+' : ''}${metrics.totalReturn.toFixed(1)}%`, label: 'LEGO Return', class: metrics.totalReturn >= 0 ? 'positive' : 'negative' },
                 { value: `+${metrics.sp500Return.toFixed(1)}%`, label: 'S&P 500 Return', class: 'sp500-color' },
-                { value: `${metrics.outperformance >= 0 ? '+' : ''}${metrics.outperformance.toFixed(1)}%`, label: 'Outperformance', class: metrics.outperformance >= 0 ? 'positive' : 'negative' },
-                { value: `${metrics.winRate.toFixed(0)}%`, label: 'Win Rate', class: metrics.winRate >= 50 ? 'positive' : 'negative' },
-                { value: `${metrics.winners}/${metrics.losers}`, label: 'Winners/Losers', class: '' }
+                { value: `${metrics.outperformance >= 0 ? '+' : ''}${metrics.outperformance.toFixed(1)}%`, label: 'vs S&P 500', class: metrics.outperformance >= 0 ? 'positive' : 'negative' },
+                { value: `${metrics.beatsSP500Count}/${metrics.totalSets}`, label: 'Beats S&P 500', class: metrics.beatsSP500Count > metrics.totalSets/2 ? 'positive' : 'negative' }
             ];
 
             grid.innerHTML = cards.map(card => `
@@ -529,19 +556,21 @@
 
             tbody.innerHTML = sets.map(s => {
                 const returnPct = ((s.current_price - s.retail_price_usd) / s.retail_price_usd) * 100;
-                const returnClass = returnPct >= 0 ? 'positive' : 'negative';
-                const statusClass = s.is_retired ? 'status-retired' : 'status-available';
-                const statusText = s.is_retired ? 'Retired' : 'Available';
+                const sp500Return = getSP500Return(s.year);
+                const beatsSP500 = returnPct > sp500Return;
+                const diffPct = returnPct - sp500Return;
+                const returnClass = beatsSP500 ? 'positive' : 'negative';
 
                 return `
                     <tr>
                         <td>${s.set_number}</td>
                         <td>${s.name}</td>
                         <td>${s.theme}</td>
-                        <td>$${s.retail_price_usd.toFixed(2)}</td>
-                        <td>$${s.current_price.toFixed(2)}</td>
-                        <td class="${returnClass}">${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}%</td>
-                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td>$${s.retail_price_usd.toFixed(0)}</td>
+                        <td>$${s.current_price.toFixed(0)}</td>
+                        <td>${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}%</td>
+                        <td>+${sp500Return}%</td>
+                        <td class="${returnClass}">${beatsSP500 ? '✅' : '❌'} ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%</td>
                     </tr>
                 `;
             }).join('');

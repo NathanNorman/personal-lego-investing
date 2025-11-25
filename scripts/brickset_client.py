@@ -3,38 +3,85 @@ BrickSet API Client for fetching LEGO set data.
 
 API Documentation: https://brickset.com/article/52664/api-version-3-documentation
 Get your free API key: https://brickset.com/tools/webservices/requestkey
+
+Credentials are stored securely in macOS Keychain:
+  - brickset-api-key
+  - brickset-username
+  - brickset-password
 """
 
-import os
 import json
+import subprocess
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv()
 
 BASE_URL = "https://brickset.com/api/v3.asmx"
 
 
+def get_keychain_value(service: str) -> str | None:
+    """Retrieve a value from macOS Keychain."""
+    try:
+        whoami = subprocess.run(['whoami'], capture_output=True, text=True).stdout.strip()
+        result = subprocess.run(
+            ['security', 'find-generic-password', '-a', whoami, '-s', service, '-w'],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
 class BrickSetClient:
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or os.getenv("BRICKSET_API_KEY")
+        self.api_key = api_key or get_keychain_value("brickset-api-key")
         if not self.api_key:
             raise ValueError(
-                "BrickSet API key required. Get one free at: "
-                "https://brickset.com/tools/webservices/requestkey"
+                "BrickSet API key not found in Keychain. Store it with:\n"
+                "security add-generic-password -a $(whoami) -s brickset-api-key -w YOUR_KEY"
             )
         self.user_hash = None
+        self._login()  # Login on init to get userHash
+
+    def _login(self) -> None:
+        """Login to get userHash required for API calls."""
+        username = get_keychain_value("brickset-username")
+        password = get_keychain_value("brickset-password")
+
+        if not username or not password:
+            raise ValueError(
+                "BrickSet credentials not found in Keychain. Store them with:\n"
+                "security add-generic-password -a $(whoami) -s brickset-username -w YOUR_EMAIL\n"
+                "security add-generic-password -a $(whoami) -s brickset-password -w YOUR_PASSWORD"
+            )
+
+        url = f"{BASE_URL}/login"
+        response = requests.post(url, data={
+            "apiKey": self.api_key,
+            "username": username,
+            "password": password,
+        })
+        response.raise_for_status()
+        result = response.json()
+
+        if result.get("status") != "success":
+            raise Exception(f"Login failed: {result.get('message', 'Unknown error')}")
+
+        self.user_hash = result.get("hash")
+        print(f"Logged in to BrickSet successfully")
 
     def _request(self, method: str, params: dict | None = None) -> dict:
-        """Make a request to the BrickSet API."""
+        """Make a request to the BrickSet API (POST recommended by API docs)."""
         url = f"{BASE_URL}/{method}"
         data = {"apiKey": self.api_key}
+        if self.user_hash:
+            data["userHash"] = self.user_hash
         if params:
             data.update(params)
 
-        response = requests.get(url, params=data)
+        response = requests.post(url, data=data)
         response.raise_for_status()
         return response.json()
 
@@ -61,18 +108,18 @@ class BrickSetClient:
             page_number: Page number for pagination
             order_by: Sort order (YearFromDESC, PiecesDESC, etc.)
         """
-        params_dict = {}
+        # All parameters go inside the params JSON per API docs
+        params_dict = {
+            "pageSize": str(page_size),
+            "pageNumber": str(page_number),
+            "orderBy": order_by,
+        }
         if year:
             params_dict["year"] = str(year)
         if theme:
             params_dict["theme"] = theme
 
-        params = {
-            "params": json.dumps(params_dict),
-            "pageSize": page_size,
-            "pageNumber": page_number,
-            "orderBy": order_by,
-        }
+        params = {"params": json.dumps(params_dict)}
 
         result = self._request("getSets", params)
         if result.get("status") != "success":
