@@ -1,0 +1,22 @@
+[project]
+name = "lego-investing"
+version = "0.1.0"
+description = "LEGO Investment Tracker - Compare LEGO set appreciation vs S&P 500"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+    "pandas>=2.0.0",
+    "yfinance>=0.2.40",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

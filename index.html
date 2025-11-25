@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEGO Investment Tracker - vs S&P 500</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --lego-red: #D01012;
+            --lego-yellow: #FFD700;
+            --lego-blue: #006CB7;
+            --sp500-green: #22c55e;
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --text-primary: #ffffff;
+            --text-secondary: #a0aec0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid var(--lego-red);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--lego-yellow);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .positive { color: var(--sp500-green); }
+        .negative { color: var(--lego-red); }
+        .lego-color { color: var(--lego-yellow); }
+        .sp500-color { color: var(--sp500-green); }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-title {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .table-container {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-retired {
+            background: var(--lego-red);
+            color: white;
+        }
+
+        .status-available {
+            background: var(--sp500-green);
+            color: white;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .data-note {
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid var(--lego-yellow);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>LEGO Investment Tracker</h1>
+            <p class="subtitle">Comparing LEGO Set Appreciation vs S&P 500 Returns</p>
+        </header>
+
+        <div class="data-note">
+            <strong>Sample Data</strong> - This dashboard shows example data.
+            Configure your BrickSet API key and add real prices to see actual performance.
+        </div>
+
+        <div class="metrics-grid" id="metrics-grid">
+            <!-- Populated by JavaScript -->
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-card">
+                <h3 class="chart-title">Portfolio: LEGO vs S&P 500 Returns</h3>
+                <canvas id="comparison-chart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">Return Distribution by Set</h3>
+                <canvas id="distribution-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-card">
+                <h3 class="chart-title">Returns by Theme</h3>
+                <canvas id="theme-chart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">Retired vs Available Performance</h3>
+                <canvas id="retired-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <h3 class="chart-title">All Sets</h3>
+            <table id="sets-table">
+                <thead>
+                    <tr>
+                        <th>Set #</th>
+                        <th>Name</th>
+                        <th>Theme</th>
+                        <th>Retail</th>
+                        <th>Current</th>
+                        <th>Return</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="sets-tbody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <footer>
+            <p>Data sources: BrickSet API, eBay sold listings, Amazon prices</p>
+            <p>S&P 500 data via Yahoo Finance (SPY ETF)</p>
+            <p>Last updated: <span id="last-updated"></span></p>
+        </footer>
+    </div>
+
+    <script>
+        // Sample S&P 500 data (would be loaded from sp500_data.json in production)
+        const SP500_RETURN_12M = 28.5; // Example: S&P 500 returned ~28.5% in 2024
+
+        // Load and process data
+        async function loadData() {
+            try {
+                const response = await fetch('data/processed/sample_sets.json');
+                const sets = await response.json();
+                return sets;
+            } catch (error) {
+                console.error('Error loading data:', error);
+                return [];
+            }
+        }
+
+        function calculateMetrics(sets) {
+            const pricedSets = sets.filter(s => s.current_price && s.retail_price_usd);
+
+            if (pricedSets.length === 0) return null;
+
+            const totalRetail = pricedSets.reduce((sum, s) => sum + s.retail_price_usd, 0);
+            const totalCurrent = pricedSets.reduce((sum, s) => sum + s.current_price, 0);
+            const totalReturn = ((totalCurrent - totalRetail) / totalRetail) * 100;
+
+            const winners = pricedSets.filter(s => s.current_price > s.retail_price_usd);
+            const losers = pricedSets.filter(s => s.current_price < s.retail_price_usd);
+
+            // Calculate by theme
+            const themeReturns = {};
+            pricedSets.forEach(s => {
+                const theme = s.theme || 'Other';
+                if (!themeReturns[theme]) {
+                    themeReturns[theme] = { retail: 0, current: 0, count: 0 };
+                }
+                themeReturns[theme].retail += s.retail_price_usd;
+                themeReturns[theme].current += s.current_price;
+                themeReturns[theme].count++;
+            });
+
+            // Retired vs available
+            const retired = pricedSets.filter(s => s.is_retired);
+            const available = pricedSets.filter(s => !s.is_retired);
+
+            const retiredReturn = retired.length > 0
+                ? ((retired.reduce((s, x) => s + x.current_price, 0) - retired.reduce((s, x) => s + x.retail_price_usd, 0)) /
+                   retired.reduce((s, x) => s + x.retail_price_usd, 0)) * 100
+                : 0;
+
+            const availableReturn = available.length > 0
+                ? ((available.reduce((s, x) => s + x.current_price, 0) - available.reduce((s, x) => s + x.retail_price_usd, 0)) /
+                   available.reduce((s, x) => s + x.retail_price_usd, 0)) * 100
+                : 0;
+
+            return {
+                totalSets: pricedSets.length,
+                totalRetail,
+                totalCurrent,
+                totalProfit: totalCurrent - totalRetail,
+                totalReturn,
+                sp500Return: SP500_RETURN_12M,
+                outperformance: totalReturn - SP500_RETURN_12M,
+                winners: winners.length,
+                losers: losers.length,
+                winRate: (winners.length / pricedSets.length) * 100,
+                themeReturns,
+                retiredReturn,
+                availableReturn,
+                retiredCount: retired.length,
+                availableCount: available.length,
+                sets: pricedSets
+            };
+        }
+
+        function renderMetrics(metrics) {
+            const grid = document.getElementById('metrics-grid');
+            const cards = [
+                { value: metrics.totalSets, label: 'Total Sets', class: '' },
+                { value: `$${metrics.totalRetail.toFixed(0)}`, label: 'Total Invested', class: '' },
+                { value: `$${metrics.totalCurrent.toFixed(0)}`, label: 'Current Value', class: '' },
+                { value: `${metrics.totalReturn >= 0 ? '+' : ''}${metrics.totalReturn.toFixed(1)}%`, label: 'LEGO Return', class: metrics.totalReturn >= 0 ? 'positive' : 'negative' },
+                { value: `+${metrics.sp500Return.toFixed(1)}%`, label: 'S&P 500 Return', class: 'sp500-color' },
+                { value: `${metrics.outperformance >= 0 ? '+' : ''}${metrics.outperformance.toFixed(1)}%`, label: 'Outperformance', class: metrics.outperformance >= 0 ? 'positive' : 'negative' },
+                { value: `${metrics.winRate.toFixed(0)}%`, label: 'Win Rate', class: metrics.winRate >= 50 ? 'positive' : 'negative' },
+                { value: `${metrics.winners}/${metrics.losers}`, label: 'Winners/Losers', class: '' }
+            ];
+
+            grid.innerHTML = cards.map(card => `
+                <div class="metric-card">
+                    <div class="metric-value ${card.class}">${card.value}</div>
+                    <div class="metric-label">${card.label}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderComparisonChart(metrics) {
+            const ctx = document.getElementById('comparison-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['LEGO Portfolio', 'S&P 500'],
+                    datasets: [{
+                        data: [metrics.totalReturn, metrics.sp500Return],
+                        backgroundColor: ['#FFD700', '#22c55e'],
+                        borderColor: ['#FFD700', '#22c55e'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `Return: ${ctx.raw.toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Return %', color: '#a0aec0' },
+                            ticks: { color: '#a0aec0' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#a0aec0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDistributionChart(metrics) {
+            const ctx = document.getElementById('distribution-chart').getContext('2d');
+            const sets = metrics.sets.sort((a, b) => {
+                const aReturn = (a.current_price - a.retail_price_usd) / a.retail_price_usd;
+                const bReturn = (b.current_price - b.retail_price_usd) / b.retail_price_usd;
+                return bReturn - aReturn;
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sets.map(s => s.set_number),
+                    datasets: [{
+                        data: sets.map(s => ((s.current_price - s.retail_price_usd) / s.retail_price_usd) * 100),
+                        backgroundColor: sets.map(s => s.current_price >= s.retail_price_usd ? '#22c55e' : '#D01012'),
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: ctx => {
+                                    const set = sets[ctx[0].dataIndex];
+                                    return `${set.set_number}: ${set.name}`;
+                                },
+                                label: ctx => `Return: ${ctx.raw.toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Return %', color: '#a0aec0' },
+                            ticks: { color: '#a0aec0' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#a0aec0', maxRotation: 45 },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderThemeChart(metrics) {
+            const ctx = document.getElementById('theme-chart').getContext('2d');
+            const themes = Object.entries(metrics.themeReturns)
+                .map(([theme, data]) => ({
+                    theme,
+                    return: ((data.current - data.retail) / data.retail) * 100,
+                    count: data.count
+                }))
+                .sort((a, b) => b.return - a.return);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: themes.map(t => `${t.theme} (${t.count})`),
+                    datasets: [{
+                        data: themes.map(t => t.return),
+                        backgroundColor: themes.map(t => t.return >= 0 ? '#22c55e' : '#D01012'),
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Return %', color: '#a0aec0' },
+                            ticks: { color: '#a0aec0' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            ticks: { color: '#a0aec0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRetiredChart(metrics) {
+            const ctx = document.getElementById('retired-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        `Retired (${metrics.retiredCount}) ${metrics.retiredReturn.toFixed(1)}%`,
+                        `Available (${metrics.availableCount}) ${metrics.availableReturn.toFixed(1)}%`
+                    ],
+                    datasets: [{
+                        data: [metrics.retiredReturn, metrics.availableReturn],
+                        backgroundColor: ['#D01012', '#006CB7'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#a0aec0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTable(metrics) {
+            const tbody = document.getElementById('sets-tbody');
+            const sets = metrics.sets.sort((a, b) => {
+                const aReturn = (a.current_price - a.retail_price_usd) / a.retail_price_usd;
+                const bReturn = (b.current_price - b.retail_price_usd) / b.retail_price_usd;
+                return bReturn - aReturn;
+            });
+
+            tbody.innerHTML = sets.map(s => {
+                const returnPct = ((s.current_price - s.retail_price_usd) / s.retail_price_usd) * 100;
+                const returnClass = returnPct >= 0 ? 'positive' : 'negative';
+                const statusClass = s.is_retired ? 'status-retired' : 'status-available';
+                const statusText = s.is_retired ? 'Retired' : 'Available';
+
+                return `
+                    <tr>
+                        <td>${s.set_number}</td>
+                        <td>${s.name}</td>
+                        <td>${s.theme}</td>
+                        <td>$${s.retail_price_usd.toFixed(2)}</td>
+                        <td>$${s.current_price.toFixed(2)}</td>
+                        <td class="${returnClass}">${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}%</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Initialize
+        async function init() {
+            const sets = await loadData();
+            const metrics = calculateMetrics(sets);
+
+            if (!metrics) {
+                document.getElementById('metrics-grid').innerHTML = '<div class="metric-card"><div class="metric-value">No Data</div><div class="metric-label">Add sets to begin</div></div>';
+                return;
+            }
+
+            renderMetrics(metrics);
+            renderComparisonChart(metrics);
+            renderDistributionChart(metrics);
+            renderThemeChart(metrics);
+            renderRetiredChart(metrics);
+            renderTable(metrics);
+
+            document.getElementById('last-updated').textContent = new Date().toLocaleDateString();
+        }
+
+        init();
+    </script>
+</body>
+</html>
